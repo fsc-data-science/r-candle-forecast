@@ -82,7 +82,37 @@ htmlwidgets::saveWidget(candlestick_chart, file = "candlestick_chart.html")
 
 ar_model <- auto.arima(eth_vwap$close)
 
-prediction <- predict(ar_model, n.ahead = 5)
+# Predict N (=10) hours ahead & add as trace
+n_ahead = 10
 
-plot_ly( x = 1:733,  y = eth_vwap$close, name = 'close', type = 'scatter', mode = 'markers+lines') %>% 
-  add_trace(x = 734:738, y = prediction$pred, name = 'forecast')
+prediction <- predict(ar_model, n_ahead)
+
+# calc prediction hours 
+dates_ <- as.POSIXct(eth_vwap$hour_, format = "%Y-%m-%dT%H:%M:%OS", tz = "UTC")
+last_timestamp <- tail(dates_, 1)
+additional_timestamps <- seq(
+  from = last_timestamp + 3600,  
+  by = 3600,                    
+  length.out = n_ahead              # N
+) %>% as.POSIXct(., format = "%Y-%m-%dT%H:%M:%OS", tz = "UTC")
+
+plot_ly(x = dates_,  y = eth_vwap$close, 
+         name = 'close', type = 'scatter', mode = 'markers+lines') %>% 
+  add_trace(x = additional_timestamps, y = prediction$pred, name = 'forecast') %>% 
+add_trace(
+  x = c(additional_timestamps, rev(additional_timestamps)), 
+  y = c(prediction$pred + prediction$se, rev(prediction$pred - prediction$se)),  
+  fill = "toself",  
+  fillcolor = "rgba(0, 100, 80, 0.2)",  # Color and opacity of the shaded area
+  line = list(color = "rgba(255, 255, 255, 0)"),  # Hide the line border of the shaded area
+  name = "Confidence Interval"  
+  ) %>%  
+  layout(
+    title = list(text = paste0(n_ahead," Hour ETH-USD Forecast"), y = 0.95),
+    xaxis = list(
+      title = "Date and Time",
+      ticks = "inside"
+    ),
+    yaxis = list(title = "ETH-USD Price (VWAP)")
+  )
+ 
